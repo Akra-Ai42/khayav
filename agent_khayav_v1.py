@@ -102,6 +102,7 @@ agent_khayav = builder.compile()
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
+    # Le HTML est envoyé tel quel pour éviter les erreurs de formatage f-string de Python
     return """
     <!DOCTYPE html>
     <html lang="fr">
@@ -164,7 +165,7 @@ async def serve_frontend():
                         <div className="relative w-full max-w-md h-[100vh] sm:h-[800px] bg-[#0b141a] sm:rounded-[3rem] shadow-2xl overflow-hidden border-0 sm:border-[8px] border-slate-900 flex flex-col">
                             <header className="pt-12 pb-5 px-6 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 shadow-xl z-10">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
                                             <span className="text-2xl">🥗</span>
                                         </div>
