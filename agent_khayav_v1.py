@@ -1,197 +1,167 @@
-# agent_khayav_v1.py
-# ==============================================================================
-# USINE IA - AGENT RESTAURANT "KHAYAV" v1.0
-# Développé pour Akram (Founder)
-# ==============================================================================
-
 import os
 import json
 import requests
 from typing import TypedDict, Optional, List
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, END
 from dotenv import load_dotenv
+import uvicorn
 
 load_dotenv()
 
+# --- CONFIGURATION ---
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+TOGETHER_API_BASE = os.getenv("TOGETHER_API_BASE", "https://api.together.xyz/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3-70b-chat-hf")
+N8N_RESA_URL = os.getenv("N8N_WORKFLOW_2_RESA_URL")
+
 app = FastAPI()
 
-# --- CONFIGURATION (À adapter avec tes futures URLs n8n) ---
-N8N_WORKFLOW_2_RESA_URL = "https://n8n.ton-domaine.com/webhook/booking-khayav"
-N8N_WORKFLOW_ESCALADE_URL = "https://n8n.ton-domaine.com/webhook/escalade-patron"
+# Configuration CORS pour que ton Front-end puisse appeler l'API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# --- BASE DE CONNAISSANCES (JSON Statique) ---
-RESTO_INFO = {
-    "nom": "La Cantine d'Akram",
-    "specialites": ["Pizza Truffe (la légende)", "Pâtes Carbonara (les vraies)", "Tiramisu Maison"],
-    "options": ["Vegan (Salade Italienne)", "Sans Gluten (Risotto)"],
-    "horaires": "Tous les jours de 19h00 à 23h30",
-    "lieu": "Marseille, Vieux-Port",
-    "humour": "Toujours une blague sur la faim en début de conversation."
-}
+# --- LOGIQUE IA (LANGGRAPH) ---
 
-# --- DÉFINITION DE L'ÉTAT (Le State) ---
 class AgentState(TypedDict):
-    messages: List[dict]
+    message_client: str
     nom: Optional[str]
     date: Optional[str]
     heure: Optional[str]
     couverts: Optional[int]
-    intent: str # "INFO" | "BOOKING" | "CANCEL" | "DELAY" | "COMPLEX"
     reponse_ia: str
+    status: str # "ASKING" | "READY" | "DONE"
 
-# --- INITIALISATION DU LLM (Together AI ou OpenAI) ---
-# Note : Together AI est compatible avec l'objet ChatOpenAI
+# Initialisation du LLM via Together AI (compatible OpenAI SDK)
 llm = ChatOpenAI(
-    model="meta-llama/Llama-3-70b-chat-hf", 
-    openai_api_base="https://api.together.xyz/v1",
-    openai_api_key=os.getenv("TOGETHER_API_KEY"),
+    base_url=TOGETHER_API_BASE,
+    api_key=TOGETHER_API_KEY,
+    model=MODEL_NAME,
     temperature=0.7
 )
 
-# --- NŒUD 1 : ANALYSE & EXTRACTION ---
-def analyzer_node(state: AgentState):
-    last_user_message = state["messages"][-1]["content"]
+def analyze_and_extract(state: AgentState):
+    """Analyse le message et extrait les entités au format JSON."""
     
-    # Prompt de classification et d'extraction
-    system_instruction = f"""
-    Tu es le cerveau d'extraction de Khayav.
-    Voici les infos du resto : {json.dumps(RESTO_INFO)}
+    prompt = f"""
+    Tu es Khayav, l'assistant marseillais du restaurant "La Cantine d'Akram".
+    Ton ton : Chaleureux, drôle, utilise des expressions marseillaises (peuchère, dégun, etc.).
     
-    Ton job :
-    1. Identifie l'intention : "BOOKING" (réserver), "CANCEL" (annuler/modifier), "DELAY" (retard), "INFO" (question simple), "COMPLEX" (demande hors norme).
-    2. Extrais les entités : nom, date, heure, couverts.
-    3. Garde les valeurs déjà connues dans le State : Nom={state['nom']}, Date={state['date']}, Heure={state['heure']}, Couverts={state['couverts']}.
+    BUT : Réserver une table. Tu as besoin de : NOM, DATE, HEURE, COUVERTS.
     
-    Réponds UNIQUEMENT au format JSON strict :
+    ÉTAT ACTUEL :
+    - Nom: {state.get('nom')}
+    - Date: {state.get('date')}
+    - Heure: {state.get('heure')}
+    - Couverts: {state.get('couverts')}
+    
+    MESSAGE CLIENT : "{state['message_client']}"
+    
+    RÉPONS :
+    1. Extrais les nouvelles infos si présentes.
+    2. Si tout est complet, confirme avec joie.
+    3. S'il manque des infos, demande-les avec humour.
+    
+    FORMAT DE SORTIE OBLIGATOIRE (JSON uniquement) :
     {{
-        "intent": "...",
-        "nom": "...",
-        "date": "...",
-        "heure": "...",
-        "couverts": int ou null
+      "nom": "nom ou null",
+      "date": "date ISO ou null",
+      "heure": "HH:MM ou null",
+      "couverts": int ou null,
+      "reponse": "Ton texte marseillais",
+      "status": "READY" (si tout est là) ou "ASKING"
     }}
     """
     
-    response = llm.invoke([
-        SystemMessage(content=system_instruction),
-        HumanMessage(content=last_user_message)
-    ])
-    
+    ai_msg = llm.invoke(prompt)
     try:
-        data = json.loads(response.content)
-        state.update(data)
-    except:
-        state["intent"] = "INFO" # Fallback
+        # Nettoyage de la réponse pour ne garder que le JSON
+        raw_content = ai_msg.content.strip()
+        if "```json" in raw_content:
+            raw_content = raw_content.split("```json")[1].split("```")[0]
         
-    return state
+        data = json.loads(raw_content)
+        
+        # Mise à jour de l'état (on garde l'ancienne info si la nouvelle est nulle)
+        return {
+            **state,
+            "nom": data.get("nom") or state.get("nom"),
+            "date": data.get("date") or state.get("date"),
+            "heure": data.get("heure") or state.get("heure"),
+            "couverts": data.get("couverts") or state.get("couverts"),
+            "reponse_ia": data.get("reponse"),
+            "status": data.get("status")
+        }
+    except:
+        return {**state, "reponse_ia": "Oh peuchère, mon cerveau a chauffé au soleil ! Tu peux répéter ?", "status": "ASKING"}
 
-# --- NŒUD 2 : GÉNÉRATION DE LA RÉPONSE ---
-def responder_node(state: AgentState):
-    intent = state["intent"]
-    
-    # Construction du message de l'IA selon l'intention
-    prompt = f"""
-    Tu es Khayav, l'agent IA du restaurant. Ton ton est amical, un peu chambreur (humour marseillais léger), et efficace.
-    
-    CONTEXTE :
-    - Menu/Infos : {json.dumps(RESTO_INFO)}
-    - Intention détectée : {intent}
-    - Données collectées : Nom={state['nom']}, Date={state['date']}, Heure={state['heure']}, Pers={state['couverts']}
-    
-    CONSIGNES :
-    - Si intention "BOOKING" et manque des infos : demande-les avec humour.
-    - Si intention "BOOKING" et TOUT est là : confirme que tu lances la résa.
-    - Si intention "CANCEL" : dis que tu t'en occupes (ceci sera géré par n8n).
-    - Si intention "DELAY" : rassure le client.
-    - Si intention "COMPLEX" : dis que tu passes le relais au patron (le VIP service).
-    
-    Règle : Maximum 3 phrases.
-    """
-    
-    response = llm.invoke([
-        SystemMessage(content=prompt),
-        HumanMessage(content=state["messages"][-1]["content"])
-    ])
-    
-    state["reponse_ia"] = response.content
-    return state
-
-# --- NŒUD 3 : DÉCLENCHEUR N8N (Workflow 2) ---
-def trigger_action_node(state: AgentState):
-    # C'est ici qu'on fait le lien avec tes "muscles" n8n
-    
-    intent = state["intent"]
-    
-    # CAS A : Réservation complète
-    if intent == "BOOKING" and state["nom"] and state["date"] and state["heure"] and state["couverts"]:
+def trigger_booking(state: AgentState):
+    """Envoie la réservation à n8n si le status est READY."""
+    if state["status"] == "READY" and N8N_RESA_URL:
         payload = {
-            "action": "CREATE_BOOKING",
             "nom": state["nom"],
             "date": state["date"],
             "heure": state["heure"],
             "couverts": state["couverts"]
         }
-        requests.post(N8N_WORKFLOW_2_RESA_URL, json=payload)
-        print("🚀 Signal de réservation envoyé à n8n")
-
-    # CAS B : Escalade (Demande complexe)
-    elif intent == "COMPLEX":
-        payload = {
-            "action": "HUMAN_ESCALATION",
-            "message": state["messages"][-1]["content"]
-        }
-        requests.post(N8N_WORKFLOW_ESCALADE_URL, json=payload)
-        print("⚠️ Signal d'escalade envoyé au patron via n8n")
-        
+        try:
+            requests.post(N8N_RESA_URL, json=payload, timeout=5)
+            return {**state, "status": "DONE", "reponse_ia": state["reponse_ia"] + " ✅ C'est validé dans l'agenda, à très vite !"}
+        except:
+            return {**state, "reponse_ia": "Le serveur de réservation fait la sieste... réessaye dans 2 minutes !"}
     return state
 
-# --- CONSTRUCTION DU GRAPHE LANGGRAPH ---
+# Construction du Graphe
 builder = StateGraph(AgentState)
+builder.add_node("brain", analyze_and_extract)
+builder.add_node("n8n_action", trigger_booking)
+builder.set_entry_point("brain")
 
-builder.add_node("analyzer", analyzer_node)
-builder.add_node("responder", responder_node)
-builder.add_node("trigger", trigger_action_node)
+builder.add_conditional_edges(
+    "brain",
+    lambda x: x["status"],
+    {"READY": "n8n_action", "ASKING": END}
+)
+builder.add_edge("n8n_action", END)
+agent_khayav = builder.compile()
 
-builder.set_entry_point("analyzer")
-builder.add_edge("analyzer", "responder")
-builder.add_edge("responder", "trigger")
-builder.add_edge("trigger", END)
+# --- ROUTES API ---
 
-brain_khayav = builder.compile()
-
-# --- ROUTES FASTAPI (La Porte pour n8n Workflow 1) ---
+@app.get("/")
+def health():
+    return {"status": "Khayav is alive and kicking 🚀", "pôle": "Usine IA"}
 
 @app.post("/api/khayav/chat")
 async def chat(request: Request):
     data = await request.json()
+    user_msg = data.get("message")
     
-    # On récupère les infos envoyées par n8n (persistance de l'état)
-    # n8n doit renvoyer les données extraites à chaque tour dans le body
-    input_state = {
-        "messages": [{"role": "user", "content": data.get("message")}],
+    # Récupération du contexte précédent (optionnel via n8n ou local)
+    initial_state = {
+        "message_client": user_msg,
         "nom": data.get("nom"),
         "date": data.get("date"),
         "heure": data.get("heure"),
         "couverts": data.get("couverts"),
-        "intent": "INFO",
+        "status": "ASKING",
         "reponse_ia": ""
     }
     
-    # Exécution du cerveau
-    output_state = brain_khayav.invoke(input_state)
+    final_result = agent_khayav.invoke(initial_state)
     
-    # On renvoie la réponse et les variables à n8n pour qu'il les garde en mémoire
     return {
-        "reponse": output_state["reponse_ia"],
-        "nom": output_state["nom"],
-        "date": output_state["date"],
-        "heure": output_state["heure"],
-        "couverts": output_state["couverts"]
+        "reponse": final_result["reponse_ia"],
+        "nom": final_result["nom"],
+        "date": final_result["date"],
+        "heure": final_result["heure"],
+        "couverts": final_result["couverts"]
     }
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
