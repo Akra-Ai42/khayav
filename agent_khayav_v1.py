@@ -20,7 +20,6 @@ N8N_RESA_URL = os.getenv("N8N_WORKFLOW_2_RESA_URL")
 
 app = FastAPI()
 
-# Configuration CORS pour autoriser les appels du front vers le back
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -103,7 +102,7 @@ agent_khayav = builder.compile()
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
-    """Cette route sert l'interface React (le POC) directement sur la racine."""
+    """Cette route sert l'interface React directement avec des URLs propres."""
     return """
     <!DOCTYPE html>
     <html lang="fr">
@@ -137,7 +136,7 @@ async def serve_frontend():
 
                 useEffect(() => {
                     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-                    lucide.createIcons();
+                    if (window.lucide) lucide.createIcons();
                 }, [messages, isTyping]);
 
                 const sendMessage = async (e) => {
@@ -163,39 +162,39 @@ async def serve_frontend():
                 };
 
                 return (
-                    <div class="flex items-center justify-center min-h-screen p-0 sm:p-4 font-sans text-slate-100">
-                        <div class="relative w-full max-w-md h-[100vh] sm:h-[800px] bg-[#0b141a] sm:rounded-[3rem] shadow-2xl overflow-hidden border-0 sm:border-[8px] border-slate-900 flex flex-col">
-                            <header class="pt-12 pb-5 px-6 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 shadow-xl z-10">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/20"><i data-lucide="utensils-crossed" class="text-white"></i></div>
-                                        <div><h1 class="font-bold text-lg leading-none">Agent Khayav <i data-lucide="sparkles" class="inline w-4 text-yellow-300"></i></h1><p class="text-[10px] opacity-80 uppercase tracking-widest mt-1">En ligne • Marseille</p></div>
+                    <div className="flex items-center justify-center min-h-screen p-0 sm:p-4 font-sans text-slate-100">
+                        <div className="relative w-full max-w-md h-[100vh] sm:h-[800px] bg-[#0b141a] sm:rounded-[3rem] shadow-2xl overflow-hidden border-0 sm:border-[8px] border-slate-900 flex flex-col">
+                            <header className="pt-12 pb-5 px-6 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 shadow-xl z-10">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/20"><i data-lucide="utensils-crossed" className="text-white"></i></div>
+                                        <div><h1 className="font-bold text-lg leading-none">Agent Khayav <i data-lucide="sparkles" className="inline w-4 text-yellow-300"></i></h1><p className="text-[10px] opacity-80 uppercase tracking-widest mt-1">En ligne • Marseille</p></div>
                                     </div>
-                                    <button onClick={() => window.location.reload()} class="p-2 bg-white/10 rounded-full hover:rotate-180 transition-all duration-500"><i data-lucide="refresh-ccw" class="w-4 h-4"></i></button>
+                                    <button onClick={() => window.location.reload()} className="p-2 bg-white/10 rounded-full hover:rotate-180 transition-all duration-500"><i data-lucide="refresh-ccw" className="w-4 h-4"></i></button>
                                 </div>
-                                <div class="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
-                                    <span class="bg-white/10 px-3 py-1 rounded-full text-[10px] flex items-center gap-1"><i data-lucide="map-pin" class="w-3"></i>Vieux-Port</span>
-                                    {sessionData.date && <span class="bg-green-500/30 px-3 py-1 rounded-full text-[10px] flex items-center gap-1 animate-in"><i data-lucide="calendar" class="w-3"></i>{sessionData.date}</span>}
-                                    {sessionData.heure && <span class="bg-blue-500/30 px-3 py-1 rounded-full text-[10px] flex items-center gap-1 animate-in"><i data-lucide="clock" class="w-3"></i>{sessionData.heure}</span>}
-                                    {sessionData.couverts && <span class="bg-orange-500/30 px-3 py-1 rounded-full text-[10px] flex items-center gap-1 animate-in"><i data-lucide="users" class="w-3"></i>{sessionData.couverts} pers</span>}
+                                <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
+                                    <span className="bg-white/10 px-3 py-1 rounded-full text-[10px] flex items-center gap-1"><i data-lucide="map-pin" className="w-3"></i>Vieux-Port</span>
+                                    {sessionData.date && <span className="bg-green-500/30 px-3 py-1 rounded-full text-[10px] flex items-center gap-1 animate-in"><i data-lucide="calendar" className="w-3"></i>{sessionData.date}</span>}
+                                    {sessionData.heure && <span className="bg-blue-500/30 px-3 py-1 rounded-full text-[10px] flex items-center gap-1 animate-in"><i data-lucide="clock" className="w-3"></i>{sessionData.heure}</span>}
+                                    {sessionData.couverts && <span className="bg-orange-500/30 px-3 py-1 rounded-full text-[10px] flex items-center gap-1 animate-in"><i data-lucide="users" className="w-3"></i>{sessionData.couverts} pers</span>}
                                 </div>
                             </header>
-                            <main class="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0b141a] bg-[url('[https://www.transparenttextures.com/patterns/carbon-fibre.png](https://www.transparenttextures.com/patterns/carbon-fibre.png)')]">
+                            <main className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0b141a]">
                                 {messages.map(msg => (
-                                    <div key={msg.id} class={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in`}>
-                                        <div class={`max-w-[85%] p-3 rounded-2xl shadow-lg ${msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-100 rounded-tl-none border border-white/5'}`}>
-                                            <p class="text-sm leading-relaxed">{msg.text}</p>
-                                            <div class="flex justify-end gap-1 mt-1 opacity-50 text-[9px] font-bold"><span>{msg.time}</span>{msg.sender === 'user' && <i data-lucide="check-check" class="w-3"></i>}</div>
+                                    <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in`}>
+                                        <div className={`max-w-[85%] p-3 rounded-2xl shadow-lg ${{msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-100 rounded-tl-none border border-white/5'}`}>
+                                            <p className="text-sm leading-relaxed">{msg.text}</p>
+                                            <div className="flex justify-end gap-1 mt-1 opacity-50 text-[9px] font-bold"><span>{msg.time}</span>{msg.sender === 'user' && <i data-lucide="check-check" className="w-3"></i>}</div>
                                         </div>
                                     </div>
                                 ))}
-                                {isTyping && <div class="text-indigo-400 text-[10px] animate-pulse font-bold uppercase tracking-widest ml-2">Khayav réfléchit...</div>}
+                                {isTyping && <div className="text-indigo-400 text-[10px] animate-pulse font-bold uppercase tracking-widest ml-2">Khayav réfléchit...</div>}
                                 <div ref={messagesEndRef} />
                             </main>
-                            <footer class="p-4 bg-slate-900 border-t border-white/5">
-                                <form onSubmit={sendMessage} class="flex gap-2 bg-[#0b141a] p-1.5 rounded-full border border-white/10">
-                                    <input value={inputValue} onChange={e => setInputValue(e.target.value)} type="text" placeholder="Dis-moi tout..." class="flex-1 bg-transparent border-none px-4 py-2 text-sm focus:ring-0 outline-none" />
-                                    <button type="submit" class="bg-gradient-to-r from-indigo-500 to-purple-600 p-2.5 rounded-full shadow-lg active:scale-95 transition-transform"><i data-lucide="send" class="w-4 h-4"></i></button>
+                            <footer className="p-4 bg-slate-900 border-t border-white/5">
+                                <form onSubmit={sendMessage} className="flex gap-2 bg-[#0b141a] p-1.5 rounded-full border border-white/10">
+                                    <input value={inputValue} onChange={e => setInputValue(e.target.value)} type="text" placeholder="Dis-moi tout..." className="flex-1 bg-transparent border-none px-4 py-2 text-sm focus:ring-0 outline-none" />
+                                    <button type="submit" className="bg-gradient-to-r from-indigo-500 to-purple-600 p-2.5 rounded-full shadow-lg active:scale-95 transition-transform"><i data-lucide="send" className="w-4 h-4"></i></button>
                                 </form>
                             </footer>
                         </div>
