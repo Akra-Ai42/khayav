@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: khayav-agent
+    env: docker
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: TOGETHER_API_KEY
+        sync: false
+      - key: TOGETHER_API_BASE
+        value: [https://api.together.xyz/v1](https://api.together.xyz/v1)
+      - key: MODEL_NAME
+        value: meta-llama/Llama-3-70b-chat-hf
+      - key: N8N_WORKFLOW_2_RESA_URL
+        sync: false
+      - key: PORT
+        value: 8000
