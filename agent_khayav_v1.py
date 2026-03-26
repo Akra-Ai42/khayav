@@ -15,11 +15,23 @@ load_dotenv()
 # --- CONFIGURATION ---
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 TOGETHER_API_BASE = os.getenv("TOGETHER_API_BASE", "[https://api.together.xyz/v1](https://api.together.xyz/v1)")
-MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3-70b-chat-hf")
+MODEL_NAME = os.getenv("MODEL_NAME", "openai/gpt-oss-20b")
 N8N_RESA_URL = os.getenv("N8N_WORKFLOW_2_RESA_URL")
 
 app = FastAPI()
-
+@app.on_event("startup")
+async def startup_event():
+    print("--- TEST DE CONNEXION TOGETHER AI ---")
+    try:
+        url = "https://api.together.xyz/v1/models"
+        headers = {"Authorization": f"Bearer {os.getenv('TOGETHER_API_KEY')}"}
+        r = requests.get(url, headers=headers, timeout=5)
+        if r.status_code == 200:
+            print("✅ Connexion API : OK (Clé valide)")
+        else:
+            print(f"❌ Connexion API : Erreur {r.status_code} - {r.text}")
+    except Exception as e:
+        print(f"❌ Connexion API : Impossible de joindre le serveur ({e})")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
