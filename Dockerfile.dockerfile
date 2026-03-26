@@ -1,8 +1,14 @@
 FROM python:3.11-slim
+
 WORKDIR /app
+
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
+
 COPY . .
-EXPOSE 8000
-CMD ["uvicorn", "agent_khayav_v1:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# On n'expose pas de port fixe, Render gère le sien.
+# La commande sh -c permet d'interpréter la variable $PORT de Render
+CMD ["sh", "-c", "uvicorn agent_khayav_v1:app --host 0.0.0.0 --port $PORT"]
